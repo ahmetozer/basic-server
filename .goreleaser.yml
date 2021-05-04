@@ -1,0 +1,22 @@
+before:
+  hooks:
+  - go mod download
+builds:
+- main: .
+  binary: basic-server
+  env:
+  - CGO_ENABLED=0
+  goos:
+  - linux
+  - windows
+  goarch:
+  - "386"
+  - amd64
+  - arm
+  - arm64
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+archives:
+  - format: binary
+    name_template: "{{ .Binary }}-{{ .Os }}-{{ .Arch }}"

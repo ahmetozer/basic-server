@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"os/user"
+	"path/filepath"
 	"runtime"
 
 	certmngr "github.com/ahmetozer/basic-server/pkg"
@@ -19,6 +20,45 @@ import (
 var (
 	RunningEnv string = ""
 )
+
+// certDir returns the directory used for self-generated temporary
+// certificates. It prefers ~/.basic-server, creating it if needed.
+// If the home directory cannot be resolved, the directory cannot be
+// created, or it is not writable, it falls back to the working directory.
+func certDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Printf("Cannot resolve home directory, using working directory for certs: %v", err)
+		return "."
+	}
+
+	dir := filepath.Join(home, ".basic-server")
+
+	// If certs are already in place, use the directory as-is without
+	// recreating it or probing for writability.
+	_, certErr := os.Stat(filepath.Join(dir, "cert.pem"))
+	_, keyErr := os.Stat(filepath.Join(dir, "key.pem"))
+	if certErr == nil && keyErr == nil {
+		return dir
+	}
+
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		log.Printf("Cannot create %s, using working directory for certs: %v", dir, err)
+		return "."
+	}
+
+	// Verify the directory is writable before committing to it.
+	probe := filepath.Join(dir, ".write-test")
+	f, err := os.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		log.Printf("%s is not writable, using working directory for certs: %v", dir, err)
+		return "."
+	}
+	f.Close()
+	os.Remove(probe)
+
+	return dir
+}
 
 func main() {
 	log.Printf("github.com/ahmetozer/basic-server")
@@ -29,7 +69,7 @@ func main() {
 		if err != nil {
 			log.Println(err)
 		}
-		currcertDir = "."
+		currcertDir = certDir()
 	} else {
 		currcertDir = "/tmp/cert"
 		currentPath = "/web/"
